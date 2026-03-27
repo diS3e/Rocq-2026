@@ -1828,12 +1828,9 @@ Proof.
     Запишите альтернативную версию [beval], выполняющую вычисление [BAnd]
     по сокращённой схеме, и докажите, что она эквивалентна [beval].
     (Прим. это верно только потому, что вычисление выражений в Imp достаточно
-    простое.  В языке посложнее, в котором вычисление )
-    equivalent to [beval].  (N.b. This is only true because expression
-    evaluation in Imp is rather simple.  In a bigger language where
-    evaluating an expression might diverge, the short-circuiting [BAnd]
-    would _not_ be equivalent to the original, since it would make more
-    programs terminate.) *)
+    простое.  В языке посложнее, в котором вычисления могут расходиться,
+    сокращённый [BAnd] _не_ будет эквивалентен исходному, поскольку больше
+    программ начали бы завершаться.) *)
 
 (* ЗАПОЛНИТЕ ЗДЕСЬ
 
@@ -1842,10 +1839,10 @@ Proof.
 Module BreakImp.
 (** **** Упражнение: 4 звезды, стандартное, по желанию (break_imp)
 
-    Imperative languages like C and Java often include a [break] or
-    similar statement for interrupting the execution of loops. In this
-    exercise we consider how to add [break] to Imp.  First, we need to
-    enrich the language of commands with an additional case. *)
+    Императивные языки вроде C и Java часто включают [break] либо похожую
+    команду для прерывания исполнения циклов. В этом упражнении мы
+    рассматриваем, как добавить [break] в Imp.  Во-первых, нам нужно расширить
+    язык команд дополнительным случаем. *)
 
 Inductive com : Type :=
   | CSkip
@@ -1872,18 +1869,16 @@ Notation "'while' x 'do' y 'end'" := (CWhile x y)
   (in custom com at level 89, x at level 99, y at level 99,
     format "'[v' 'while'  x  'do' '/  ' y '/' 'end' ']'") : com_scope.
 
-(** Next, we need to define the behavior of [break].  Informally,
-    whenever [break] is executed in a sequence of commands, it stops
-    the execution of that sequence and signals that the innermost
-    enclosing loop should terminate.  (If there aren't any
-    enclosing loops, then the whole program simply terminates.)  The
-    final state should be the same as the one in which the [break]
-    statement was executed.
+(** Далее, нам нужно определить поведение [break].  По сути, как только [break]
+    встречается в последовательности команд, он останавливает исполнение этой
+    последовательности и сигнализирует, что ближайший вложенный цикл должен
+    завершиться.  (Если никаких циклов, оборачивающих последовательность, нет,
+    то завершается вся программа.)  Конечное состояние должно быть таким же, как
+    то, в котором исполнился [break].
 
-    One important point is what to do when there are multiple loops
-    enclosing a given [break]. In those cases, [break] should only
-    terminate the _innermost_ loop. Thus, after executing the
-    following...
+    Важно разобраться в том, что делать, когда текущий [break] окружает
+    несколько циклов. В этих случаях, [break] должен завершать лишь самый
+    _внутренний_ цикл. Так что, после исполнения следующей программы...
 
        X := 0;
        Y := 1;
@@ -1895,11 +1890,11 @@ Notation "'while' x 'do' y 'end'" := (CWhile x y)
          Y := Y - 1
        end
 
-    ... the value of [X] should be [1], and not [0].
+    ... значение [X] должно быть равно [1], не [0].
 
-    One way of expressing this behavior is to add another parameter to
-    the evaluation relation that specifies whether evaluation of a
-    command executes a [break] statement: *)
+    Один из способов выразить такое поведение -- добавить ещё один параметр
+    к отношению исполнения, который указывает, исполняется ли [break]:
+*)
 
 Inductive result : Type :=
   | SContinue
@@ -1911,52 +1906,46 @@ Reserved Notation
           st0 constr, st1 constr at next level,
           format "'[hv' st0  =[ '/  ' '[' c ']' '/' ]=>  st1 / s ']'").
 
-(** Intuitively, [st =[ c ]=> st' / s] means that, if [c] is started in
-    state [st], then it terminates in state [st'] and either signals
-    that the innermost surrounding loop (or the whole program) should
-    exit immediately ([s = SBreak]) or that execution should continue
-    normally ([s = SContinue]).
+(** Другими словами, [st =[ c ]=> st' / s] значит, что если исполнение [c]
+    началось в состоянии [c], то оно завершается в состоянии [st'] и либо
+    сигнализирует, что ближайший цикл (либо программа целиком) должен сразу же
+    остановиться ([s = SBreak]), либо что исполнение должно продолжиться
+    как обычно ([s = SContinue]).
 
-    The definition of the "[st =[ c ]=> st' / s]" relation is very
-    similar to the one we gave above for the regular evaluation
-    relation ([st =[ c ]=> st']) -- we just need to handle the
-    termination signals appropriately:
+    Определение отношения "[st =[ c ]=> st' / s]" крайне похоже на определение
+    обычного отношения исполнения [st =[ c ]=> st'] -- нам просто нужно
+    правильным образом пробросить сигналы об остановке:
 
-    - If the command is [skip], then the state doesn't change and
-      execution of any enclosing loop can continue normally.
+    - Если текущая команда -- [skip], то состояние не меняется, а исполнение
+      цикла продолжается как обычно.
 
-    - If the command is [break], the state stays unchanged but we
-      signal a [SBreak].
+    - Если текущая команда -- [break], то состояние не меняется,
+      но мы сигнализируем об остановке конструктором [SBreak].
 
-    - If the command is an assignment, then we update the binding for
-      that variable in the state accordingly and signal that execution
-      can continue normally.
+    - Если текущая команда -- присваивание, то мы соответствующим образом
+      обновляем состояние и сообщаем, что исполнение продолжается как обычно.
 
-    - If the command is of the form [if b then c1 else c2 end], then
-      the state is updated as in the original semantics of Imp, except
-      that we also propagate the signal from the execution of
-      whichever branch was taken.
+    - Если текущая команда имеет вид [if b then c1 else c2 end],
+      то и результирующее состояние, и сигнал об остановке будут те же,
+      что и у ветви, по которой был пройден условный переход.
 
-    - If the command is a sequence [c1 ; c2], we first execute
-      [c1].  If this yields a [SBreak], we skip the execution of [c2]
-      and propagate the [SBreak] signal to the surrounding context;
-      the resulting state is the same as the one obtained by
-      executing [c1] alone. Otherwise, we execute [c2] on the state
-      obtained after executing [c1], and propagate the signal
-      generated there.
+    - Если команда -- последовательность [c1 ; c2], мы сперва исполняем [c1].
+      Если она сигнализирует [SBreak], мы пропускаем исполнение [c2] и передаём
+      этот сигнал окружающему контексту; результирующее состояние то же, что
+      получилось в результате исполнения [c1]. В противном случае мы исполняем
+      [c2] на состоянии, полученном после исполнения [c1], и передаём состояние
+      и результат, полученные там, далее.
 
-    - Finally, for a loop of the form [while b do c end], the
-      semantics is almost the same as before. The only difference is
-      that, when [b] evaluates to true, we execute [c] and check the
-      signal that it raises.  If that signal is [SContinue], then the
-      execution proceeds as in the original semantics. Otherwise, we
-      stop the execution of the loop, and the resulting state is the
-      same as the one resulting from the execution of the current
-      iteration.  In either case, since [break] only terminates the
-      innermost loop, [while] signals [SContinue]. *)
+    - Наконец, в цикле вида [while b do c end] семантика остаётся почти
+      такой же, как раньше. Единственное отличие в том, что, когда [b]
+      вычисляется в [true], мы исполняем [c] и проверяем, какой сигнал она
+      передаст.  Если возвращается [SContinue], то исполнение продолжается
+      как обычно. В противном случае мы останавливаем исполнение цикла,
+      а результирующее состояние принимаем таким же, какое получилось после
+      исполнения последней итерации.  В любом случае, раз [break] завершает
+      только ближайший цикл, [while] передаёт сигнал [SContinue]. *)
 
-(** Based on the above description, complete the definition of the
-    [ceval] relation. *)
+(** Основываясь на описании выше, завершите определение отношения [ceval]. *)
 
 Inductive ceval : com -> state -> result -> state -> Prop :=
   | E_Skip : forall st,
@@ -1965,7 +1954,7 @@ Inductive ceval : com -> state -> result -> state -> Prop :=
 
   where "st '=[' c ']=>' st' '/' s" := (ceval c st s st').
 
-(** Now prove the following properties of your definition of [ceval]: *)
+(** Теперь докажите следующие свойства Вашего определения [ceval]: *)
 
 Theorem break_ignore : forall c st st' s,
      st =[ break; c ]=> st' / s ->
@@ -2022,21 +2011,19 @@ End BreakImp.
 
 (** **** Упражнение: 4 звезды, стандартное, по желанию (add_for_loop)
 
-    Add C-style [for] loops to the language of commands, update the
-    [ceval] definition to define the semantics of [for] loops, and add
-    cases for [for] loops as needed so that all the proofs in this
-    file are accepted by Rocq.
+    Добавьте циклы [for] (как в языке C) к языку команд, обновите определение
+    [ceval], чтобы доопределить семантику циклов [for], и добавьте случаи для
+    циклов [for] ко всем доказательствам в этом файле так, чтобы они принимались
+    ядром Rocq.
 
-    A [for] loop should be parameterized by (a) a statement executed
-    initially, (b) a test that is run on each iteration of the loop to
-    determine whether the loop should continue, (c) a statement
-    executed at the end of each loop iteration, and (d) a statement
-    that makes up the body of the loop.  (You don't need to worry
-    about making up a concrete Notation for [for] loops, but feel free
-    to play with this too if you like.) *)
+    Цикл [for] должен быть параметризован (a) командой для исполнения
+    перед циклом, (б) условием для продолжения, проверяемым после каждой
+    итерации цикла, (в) командой для исполнения после каждой проверки и
+    (г) телом цикла.  (добавлять [Нотацию] для циклов [for] не нужно, но,
+    конечно, можете поиграться и с этим, если захотите.) *)
 
 (* ЗАПОЛНИТЕ ЗДЕСЬ
 
     [] *)
 
-(* 2026-03-27 18:56 *)
+(* 2026-03-27 21:43 *)
